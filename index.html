@@ -104,10 +104,9 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <div class="wrap">
 <header>
   <div>
-    <h1>Roblox Status Monitor</h1>
-    <p class="subtitle">Live presence + community-sourced queue lengths.</p>
+
   </div>
-  <button id="refresh">Refresh statuses</button>
+  <button id="refresh">Refresh</button>
 </header>
 
 <section class="summary">
@@ -119,7 +118,7 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <main id="list"></main>
 
 <div class="footer">
-  Roblox presence is checked every 60 seconds • Queue values refresh every 30 seconds.
+  refreshed every 60 seconds
 </div>
 </div>
 
@@ -130,8 +129,8 @@ const people = [
   // ── Admins ──
   { role:"Admin", username:"Angelethereal",   queue:700 },
   { role:"Admin", username:"Stalwartwarden",  queue:700 },
-  { role:"Admin", username:"CoffeeRuntime",   queue:624,  note:"Newest" },
-  { role:"Admin", username:"ThirteenDucks",   queue:null, note:"Lowest queues" },
+  { role:"Admin", username:"CoffeeRuntime",   queue:624 },
+  { role:"Admin", username:"ThirteenDucks",   queue:null },
   { role:"Admin", username:"brightgreenpart", queue:900 },
   { role:"Admin", username:"nauticalcaptain", queue:1000 },
 
@@ -149,22 +148,15 @@ const people = [
   { role:"Developer", username:"kxttyrei",       queue:600 },
   { role:"Developer", username:"MxnavFX",        queue:null },
   { role:"Developer", username:"arcisbored",     queue:null },
-  { role:"Developer", username:"MAHAIO",         queue:null, note:"Lowest queues" },
-  { role:"Developer", username:"Deathux",        queue:null, note:"High queues" },
-  { role:"Developer", username:"brandonisbulk",  queue:null, note:"Full queues" },
-  { role:"Developer", username:"jersito4",       queue:600, note:"600+" },
+  { role:"Developer", username:"MAHAIO",         queue:null },
+  { role:"Developer", username:"Deathux",        queue:null },
+  { role:"Developer", username:"brandonisbulk",  queue:null },
+  { role:"Developer", username:"jersito4",       queue:600 },
   { role:"Developer", username:"FLEETINGVORTEX", queue:600 },
 
   // ── Original roster ──
   { role:"Creator", username:"javie12", queue:null, note:"PS" },
 
-  // ── Special link entry (no queue) ──
-  {
-    role:"Creator",
-    special:true,
-    title:"The Hunt: Roblox 20",
-    url:"https://www.roblox.com/games/74205509034203/The-Hunt-Roblox-20?privateServerLinkCode=30112157627168132689738283351982"
-  }
 ];
 
 // Lowercase username → { value, updatedAt, history }
