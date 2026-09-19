@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Roblox Status Monitor</title>
+<title>Roblox Test v2</title>
 <style>
 :root{
   --bg:#080d19;--panel:#111a2b;--panel2:#17233b;--text:#f4f7ff;
@@ -66,10 +66,6 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <body>
 <div class="wrap">
 <header>
-  <div>
-    <h1>Roblox Status Monitor</h1>
-    <p class="subtitle">Live Roblox presence for the users in your list.</p>
-  </div>
   <button id="refresh">Refresh statuses</button>
 </header>
 
@@ -82,18 +78,12 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <main id="list"></main>
 
 <div class="footer">
-  Roblox presence is checked automatically every 60 seconds.
+  checked automatically every 60 seconds.
 </div>
 </div>
 
 <script>
-/*
-  IMPORTANT:
-  Replace this with your Cloudflare Worker URL.
 
-  Example:
-  const API_BASE = "https://roblox-status-api.yourname.workers.dev";
-*/
   const API_BASE = "https://roblox-status-api.mohamedlaik.workers.dev";
 
 const people = [
@@ -129,7 +119,7 @@ function renderLoading(){
           <span class="name">${esc(p.username||p.title)}</span>
           <span class="role">${esc(p.role)}</span>
         </div>
-        <div class="meta">Loading Roblox information…</div>
+        <div class="meta">Loading…</div>
       </div>
       <div class="status unknown"><span class="dot"></span>Checking</div>
     </article>`).join("");
@@ -258,7 +248,7 @@ async function refresh(){
     <article class="card">
       <div class="avatar">!</div>
       <div>
-        <div class="name">Could not load Roblox data</div>
+        <div class="name">Could not load data</div>
         <div class="meta error">${esc(error.message)}</div>
       </div>
     </article>`;
