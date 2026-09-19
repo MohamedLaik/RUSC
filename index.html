@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roblox Status Monitor</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121a2d;
+    --panel2: #18223a;
+    --text: #f4f7ff;
+    --muted: #9da9c4;
+    --green: #32d583;
+    --red: #ff5d73;
+    --yellow: #ffc857;
+    --blue: #5b8cff;
+    --line: #273452;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: radial-gradient(circle at top, #172449 0%, var(--bg) 45%);
+    color: var(--text);
+  }
+  .wrap { max-width: 1050px; margin: auto; padding: 34px 18px 50px; }
+  header {
+    display: flex; justify-content: space-between; align-items: end;
+    gap: 20px; margin-bottom: 22px;
+  }
+  h1 { margin: 0 0 6px; font-size: clamp(28px, 5vw, 42px); }
+  .subtitle { color: var(--muted); margin: 0; }
+  button {
+    border: 0; border-radius: 10px; padding: 11px 16px;
+    background: var(--blue); color: white; font-weight: 700; cursor: pointer;
+  }
+  button:disabled { opacity: .55; cursor: wait; }
+  .summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
+  }
+  .stat, .card {
+    background: rgba(18,26,45,.92);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+  }
+  .stat { padding: 16px; }
+  .stat b { display: block; font-size: 25px; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  #list { display: grid; gap: 12px; }
+  .card {
+    padding: 17px;
+    display: grid;
+    grid-template-columns: 62px 1fr auto;
+    align-items: center;
+    gap: 15px;
+  }
+  .avatar {
+    width: 62px; height: 62px; border-radius: 12px;
+    object-fit: cover; background: #202b48;
+  }
+  .name-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .name { font-size: 18px; font-weight: 800; }
+  .role {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .7px;
+    padding: 4px 7px; border-radius: 999px; background: #243252; color: #b8c8ee;
+  }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  .status {
+    min-width: 105px; text-align: right; font-weight: 800;
+  }
+  .dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    margin-right: 6px; background: var(--red);
+  }
+  .online .dot { background: var(--green); }
+  .ingame .dot { background: var(--green); box-shadow: 0 0 10px rgba(50,213,131,.65); }
+  .studio .dot { background: var(--yellow); }
+  .unknown .dot { background: var(--yellow); }
+  a { color: #7da3ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .score { color: #aab6d0; font-size: 13px; }
+  .error { color: var(--red); }
+  .footer { color: var(--muted); text-align: center; font-size: 12px; margin-top: 18px; }
+  @media (max-width: 650px) {
+    header { align-items: stretch; flex-direction: column; }
+    .summary { grid-template-columns: 1fr 1fr; }
+    .summary .stat:last-child { grid-column: span 2; }
+    .card { grid-template-columns: 48px 1fr; }
+    .avatar { width: 48px; height: 48px; }
+    .status { grid-column: 2; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Roblox Status Monitor</h1>
+      <p class="subtitle">Live presence for the users in your list.</p>
+    </div>
+    <button id="refresh">Refresh statuses</button>
+  </header>
+
+  <section class="summary">
+    <div class="stat"><b id="onlineCount">—</b><span>Online / in-game</span></div>
+    <div class="stat"><b id="offlineCount">—</b><span>Offline</span></div>
+    <div class="stat"><b id="updated">—</b><span>Last checked</span></div>
+  </section>
+
+  <main id="list"></main>
+  <div class="footer">
+    Statuses are read from Roblox's public user/presence APIs. The list refreshes automatically every 60 seconds.
+  </div>
+</div>
+
+<script>
+const people = [
+  { role: "Admin", username: "brightgreenpart", score: "900" },
+  { role: "Admin", username: "nauticalcaptain", score: "1000+" },
+  { role: "Creator", username: "robey100", score: "1000+" },
+  { role: "Creator", username: "wierdblox", score: "1000+" },
+  { role: "Creator", username: "javie12", score: "PS" },
+  {
+    role: "Creator",
+    special: true,
+    title: "The Hunt: Roblox 20",
+    score: "-400",
+    url: "https://www.roblox.com/games/74205509034203/The-Hunt-Roblox-20?privateServerLinkCode=30112157627168132689738283351982"
+  }
+];
+
+const list = document.getElementById("list");
+const refreshButton = document.getElementById("refresh");
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
+
+function renderLoading() {
+  list.innerHTML = people.map((p, i) => `
+    <article class="card">
+      <div class="avatar"></div>
+      <div>
+        <div class="name-row">
+          <span class="name">${esc(p.username || p.title)}</span>
+          <span class="role">${esc(p.role)}</span>
+        </div>
+        <div class="meta">Loading Roblox information…</div>
+      </div>
+      <div class="status unknown"><span class="dot"></span>Checking</div>
+    </article>
+  `).join("");
+}
+
+function renderSpecial(p) {
+  return `
+    <article class="card">
+      <div class="avatar">🎮</div>
+      <div>
+        <div class="name-row">
+          <span class="name"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></span>
+          <span class="role">${esc(p.role)}</span>
+        </div>
+        <div class="meta">Private server link • This entry is a game/server, not a Roblox user.</div>
+      </div>
+      <div class="status"><span class="score">${esc(p.score)}</span></div>
+    </article>
+  `;
+}
+
+async function getUserIds(usernames) {
+  const response = await fetch("https://users.roblox.com/v1/usernames/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames, excludeBannedUsers: false })
+  });
+  if (!response.ok) throw new Error("Could not resolve Roblox usernames.");
+  return response.json();
+}
+
+async function getPresence(userIds) {
+  const response = await fetch("https://presence.roblox.com/v1/presence/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userIds })
+  });
+  if (!response.ok) throw new Error("Could not retrieve Roblox presence.");
+  return response.json();
+}
+
+function statusInfo(presence) {
+  switch (presence?.userPresenceType) {
+    case 0: return { text: "Offline", cls: "offline" };
+    case 1: return { text: "Online", cls: "online" };
+    case 2: return { text: "In Game", cls: "ingame" };
+    case 3: return { text: "In Studio", cls: "studio" };
+    case 4: return { text: "Invisible", cls: "offline" };
+    default: return { text: "Unknown", cls: "unknown" };
+  }
+}
+
+async function refresh() {
+  refreshButton.disabled = true;
+  renderLoading();
+
+  const users = people.filter(p => !p.special);
+  const usernames = users.map(p => p.username);
+
+  try {
+    const [resolved,] = await Promise.all([getUserIds(usernames)]);
+    const idByName = new Map(resolved.data.map(u => [u.name.toLowerCase(), u]));
+
+    const ids = resolved.data.map(u => u.id);
+    const presenceData = await getPresence(ids);
+    const presenceById = new Map((presenceData.userPresences || []).map(p => [p.userId, p]));
+
+    const cards = people.map(p => {
+      if (p.special) return renderSpecial(p);
+
+      const user = idByName.get(p.username.toLowerCase());
+
+      if (!user) {
+        return `
+          <article class="card">
+            <div class="avatar">?</div>
+            <div>
+              <div class="name-row">
+                <span class="name">${esc(p.username)}</span>
+                <span class="role">${esc(p.role)}</span>
+              </div>
+              <div class="meta error">Roblox username could not be found.</div>
+            </div>
+            <div class="status unknown"><span class="dot"></span>Unknown</div>
+          </article>`;
+      }
+
+      const presence = presenceById.get(user.id);
+      const info = statusInfo(presence);
+      const avatar = `https://tr.rbxcdn.com/30DAY-AvatarHeadshot-${user.id}-Png/150/150/AvatarHeadshot/Webp/noFilter`;
+
+      let detail = `@${esc(user.name)}`;
+      if (presence?.lastLocation) detail += ` • ${esc(presence.lastLocation)}`;
+
+      return `
+        <article class="card ${info.cls}">
+          <img class="avatar" src="${avatar}" alt="${esc(user.name)} avatar"
+               onerror="this.style.visibility='hidden'">
+          <div>
+            <div class="name-row">
+              <span class="name">${esc(user.displayName || user.name)}</span>
+              <span class="role">${esc(p.role)}</span>
+            </div>
+            <div class="meta">${detail} • <span class="score">${esc(p.score)}</span></div>
+          </div>
+          <div class="status ${info.cls}"><span class="dot"></span>${info.text}</div>
+        </article>`;
+    });
+
+    list.innerHTML = cards.join("");
+
+    const presences = users.map(p => {
+      const u = idByName.get(p.username.toLowerCase());
+      return u ? presenceById.get(u.id) : null;
+    }).filter(Boolean);
+
+    const online = presences.filter(p => [1,2,3].includes(p.userPresenceType)).length;
+    const offline = users.length - online;
+
+    document.getElementById("onlineCount").textContent = online;
+    document.getElementById("offlineCount").textContent = offline;
+    document.getElementById("updated").textContent =
+      new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  } catch (error) {
+    list.innerHTML = `
+      <article class="card">
+        <div class="avatar">!</div>
+        <div>
+          <div class="name">Could not load Roblox data</div>
+          <div class="meta error">${esc(error.message)}</div>
+        </div>
+      </article>`;
+    document.getElementById("onlineCount").textContent = "—";
+    document.getElementById("offlineCount").textContent = "—";
+    document.getElementById("updated").textContent = "Error";
+  } finally {
+    refreshButton.disabled = false;
+  }
+}
+
+refreshButton.addEventListener("click", refresh);
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>
