@@ -139,14 +139,6 @@ function renderSpecial(p){
   return `
   <article class="card">
     <div class="avatar">🎮</div>
-    <div>
-      <div class="name-row">
-        <span class="name"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></span>
-        <span class="role">${esc(p.role)}</span>
-      </div>
-      <div class="meta">Private server link • Not a Roblox user.</div>
-    </div>
-    <div class="status"><span class="score">${esc(p.score)}</span></div>
   </article>`;
 }
 
@@ -238,7 +230,7 @@ async function refresh(){
             <span class="name">${esc(user.displayName||user.name)}</span>
             <span class="role">${esc(p.role)}</span>
           </div>
-          <div class="meta">${detail} • <span class="score">${esc(p.score)}</span></div>
+          <div class="meta">${detail} • Queue <span class="score">${esc(p.score)}</span></div>
         </div>
         <div class="status ${info.cls}">
           <span class="dot"></span>${info.text}
