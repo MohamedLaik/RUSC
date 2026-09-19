@@ -26,39 +26,15 @@ button{
 }
 button:disabled{opacity:.55;cursor:wait}
 
-/* ---- Queue panel ---- */
-.queue-panel{
-  background:linear-gradient(135deg,rgba(86,136,255,.16),rgba(17,26,43,.95));
-  border:1px solid var(--line);border-radius:15px;
-  padding:20px;margin-bottom:20px;
-  display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:18px 22px;
-  align-items:center;
-}
-.queue-label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:1px}
-.queue-value b{display:block;font-size:46px;line-height:1.05;letter-spacing:-1.5px}
-.queue-value small{color:var(--muted);font-size:12px}
-#queueForm{display:flex;gap:10px;flex-wrap:wrap}
-#queueInput{
-  flex:1;min-width:190px;padding:11px 13px;border-radius:10px;
-  border:1px solid var(--line);background:#0d1628;color:var(--text);
-  font:inherit;font-weight:600;
-}
-#queueInput:focus{outline:2px solid rgba(86,136,255,.6);outline-offset:1px}
-.queue-hint{color:var(--muted);font-size:12px;margin-top:9px}
-.queue-history{
-  grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;
-  display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);
-}
-.queue-history .row{display:flex;gap:9px;flex-wrap:wrap;align-items:baseline}
-.queue-history .delta{color:var(--yellow);font-weight:700}
-.queue-history .eq{color:var(--green);font-weight:700}
-.queue-history .empty{font-style:italic}
-
 .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .stat,.card{background:rgba(17,26,43,.94);border:1px solid var(--line);border-radius:15px}
 .stat{padding:16px}.stat b{display:block;font-size:25px}.stat span{color:var(--muted);font-size:13px}
 #list{display:grid;gap:12px}
-.card{padding:17px;display:grid;grid-template-columns:62px 1fr auto;align-items:center;gap:15px}
+
+.card{
+  padding:17px;display:grid;grid-template-columns:62px 1fr auto;
+  align-items:start;gap:15px;
+}
 .avatar{
   width:62px;height:62px;border-radius:12px;object-fit:cover;background:#202b48;
   display:flex;align-items:center;justify-content:center;font-size:25px
@@ -68,6 +44,11 @@ button:disabled{opacity:.55;cursor:wait}
 .role{
   font-size:11px;text-transform:uppercase;letter-spacing:.7px;padding:4px 7px;
   border-radius:999px;background:#243252;color:#b8c8ee
+}
+.note-badge{
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;
+  padding:4px 7px;border-radius:999px;
+  background:rgba(255,200,87,.14);color:var(--yellow)
 }
 .meta{color:var(--muted);font-size:13px;margin-top:5px}
 .status{min-width:105px;text-align:right;font-weight:800}
@@ -81,15 +62,41 @@ button:disabled{opacity:.55;cursor:wait}
 .unknown .dot{background:var(--yellow)}
 .error{color:var(--red)}
 a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
+
+/* ---- queue row ---- */
+.queue-row{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:11px;padding-top:11px;
+  border-top:1px dashed rgba(38,53,83,.75);
+}
+.queue-badge{
+  font-size:12px;color:var(--muted);
+  background:#1a2740;border:1px solid var(--line);
+  padding:5px 11px;border-radius:999px;white-space:nowrap;
+}
+.queue-badge b{color:var(--text);font-size:15px;margin-left:3px}
+.queue-input{
+  width:112px;padding:6px 9px;border-radius:8px;
+  border:1px solid var(--line);background:#0d1628;color:var(--text);
+  font:inherit;font-size:13px;
+}
+.queue-input:focus{outline:2px solid rgba(86,136,255,.55);outline-offset:1px}
+.queue-submit{
+  padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:700;
+  background:var(--blue);color:white;
+}
+.queue-updated{font-size:11px;color:var(--muted);margin-left:auto}
+
 .footer{color:var(--muted);text-align:center;font-size:12px;margin-top:18px}
+
 @media(max-width:650px){
   header{align-items:stretch;flex-direction:column}
-  .queue-panel{grid-template-columns:1fr}
   .summary{grid-template-columns:1fr 1fr}
   .summary .stat:last-child{grid-column:span 2}
   .card{grid-template-columns:48px 1fr}
   .avatar{width:48px;height:48px}
   .status{grid-column:2;text-align:left}
+  .queue-updated{margin-left:0}
 }
 </style>
 </head>
@@ -98,33 +105,10 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <header>
   <div>
     <h1>Roblox Status Monitor</h1>
-    <p class="subtitle">Live Roblox presence for the users in your list.</p>
+    <p class="subtitle">Live presence + community-sourced queue lengths.</p>
   </div>
   <button id="refresh">Refresh statuses</button>
 </header>
-
-<!-- ===== Queue ===== -->
-<section class="queue-panel">
-  <div class="queue-value">
-    <span class="queue-label">Current queue</span>
-    <b id="queueValue">—</b>
-    <small id="queueMeta">Loading…</small>
-  </div>
-  <div>
-    <form id="queueForm">
-      <input id="queueInput" type="number" min="0" max="1000" step="1"
-             placeholder="Your observed amount (0–1000)" inputmode="numeric">
-      <button type="submit" id="queueSubmit">Submit</button>
-    </form>
-    <div class="queue-hint">
-      Your amount is averaged with the current value: (current + yours) ÷ 2.
-      Anything above 1000 is treated as 1000.
-    </div>
-  </div>
-  <div class="queue-history" id="queueHistory">
-    <span class="empty">No submissions yet — be the first.</span>
-  </div>
-</section>
 
 <section class="summary">
   <div class="stat"><b id="onlineCount">—</b><span>Online / active</span></div>
@@ -135,30 +119,56 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <main id="list"></main>
 
 <div class="footer">
-  Roblox presence is checked automatically every 60 seconds.
+  Roblox presence is checked every 60 seconds • Queue values refresh every 30 seconds.
 </div>
 </div>
 
 <script>
-/*
-  Replace with your Cloudflare Worker URL.
-*/
 const API_BASE = "https://roblox-status-api.mohamedlaik.workers.dev";
 
 const people = [
-  {role:"Admin", username:"brightgreenpart", score:"900"},
-  {role:"Admin", username:"nauticalcaptain", score:"1000+"},
-  {role:"Creator", username:"robey100", score:"1000+"},
-  {role:"Creator", username:"wierdblox", score:"1000+"},
-  {role:"Creator", username:"javie12", score:"PS"},
+  // ── Admins ──
+  { role:"Admin", username:"Angelethereal",   queue:700 },
+  { role:"Admin", username:"Stalwartwarden",  queue:700 },
+  { role:"Admin", username:"CoffeeRuntime",   queue:624,  note:"Newest" },
+  { role:"Admin", username:"ThirteenDucks",   queue:null, note:"Lowest queues" },
+  { role:"Admin", username:"brightgreenpart", queue:900 },
+  { role:"Admin", username:"nauticalcaptain", queue:1000 },
+
+  // ── Content creators ──
+  { role:"Content Creator", username:"WeirdBlox",    queue:47  },
+  { role:"Content Creator", username:"Dogbon62",     queue:182 },
+  { role:"Content Creator", username:"1rex1",        queue:347 },
+  { role:"Content Creator", username:"Nicole_Kimmi", queue:251 },
+  { role:"Content Creator", username:"robey100",     queue:73  },
+  { role:"Content Creator", username:"Crystalaco",   queue:300 },
+  { role:"Content Creator", username:"LcLcO1",       queue:900 },
+  { role:"Content Creator", username:"Jeny_Punker",  queue:null },
+
+  // ── Developers ──
+  { role:"Developer", username:"kxttyrei",       queue:600 },
+  { role:"Developer", username:"MxnavFX",        queue:null },
+  { role:"Developer", username:"arcisbored",     queue:null },
+  { role:"Developer", username:"MAHAIO",         queue:null, note:"Lowest queues" },
+  { role:"Developer", username:"Deathux",        queue:null, note:"High queues" },
+  { role:"Developer", username:"brandonisbulk",  queue:null, note:"Full queues" },
+  { role:"Developer", username:"jersito4",       queue:600, note:"600+" },
+  { role:"Developer", username:"FLEETINGVORTEX", queue:600 },
+
+  // ── Original roster ──
+  { role:"Creator", username:"javie12", queue:null, note:"PS" },
+
+  // ── Special link entry (no queue) ──
   {
     role:"Creator",
     special:true,
     title:"The Hunt: Roblox 20",
-    score:"-400",
     url:"https://www.roblox.com/games/74205509034203/The-Hunt-Roblox-20?privateServerLinkCode=30112157627168132689738283351982"
   }
 ];
+
+// Lowercase username → { value, updatedAt, history }
+const queueState = {};
 
 const list = document.getElementById("list");
 const refreshButton = document.getElementById("refresh");
@@ -170,128 +180,134 @@ function esc(value){
 }
 
 /* ============================
-   QUEUE
+   QUEUE helpers
    ============================ */
 
-const queueValueEl  = document.getElementById("queueValue");
-const queueMetaEl   = document.getElementById("queueMeta");
-const queueHistEl   = document.getElementById("queueHistory");
-const queueForm     = document.getElementById("queueForm");
-const queueInput    = document.getElementById("queueInput");
-const queueSubmit   = document.getElementById("queueSubmit");
-
-function renderQueue(state){
-  if(!state) return;
-
-  queueValueEl.textContent =
-    (state.value === null || state.value === undefined) ? "—" : state.value;
-
-  queueMetaEl.textContent = state.updatedAt
-    ? "Updated " + new Date(state.updatedAt).toLocaleString()
-    : "No submissions yet — be the first.";
-
-  const items = (state.history || []).slice(0, 5);
-
-  if(items.length === 0){
-    queueHistEl.innerHTML =
-      '<span class="empty">No submissions yet — be the first.</span>';
-    return;
-  }
-
-  queueHistEl.innerHTML = items.map(h => {
-    const prev = (h.previous === null || h.previous === undefined)
-      ? "—" : h.previous;
-    const time = new Date(h.at).toLocaleTimeString([], {
-      hour:"2-digit", minute:"2-digit"
-    });
-    return `<div class="row">
-      <span class="delta">${prev} → ${h.amount}</span>
-      <span class="eq">= ${h.result}</span>
-      <span>• ${time}</span>
-    </div>`;
-  }).join("");
+function queueValueFor(username){
+  if(!username) return null;
+  const s = queueState[username.toLowerCase()];
+  if(!s) return null;
+  return (s.value === null || s.value === undefined) ? null : s.value;
 }
 
-async function fetchQueue(){
-  const r = await fetch(API_BASE + "/queue", { method:"GET" });
+function queueRowHTML(username){
+  if(!username) return "";
+
+  const state = queueState[username.toLowerCase()];
+  const val = (state && state.value !== null && state.value !== undefined)
+    ? state.value : "—";
+  const updated = state && state.updatedAt
+    ? new Date(state.updatedAt).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})
+    : "";
+
+  return `
+    <div class="queue-row">
+      <span class="queue-badge">Queue <b>${esc(val)}</b></span>
+      <input class="queue-input" type="number" min="0" max="1000" step="1"
+             placeholder="0–1000" inputmode="numeric">
+      <button class="queue-submit" type="button">Update</button>
+      <span class="queue-updated">${updated ? "Updated " + esc(updated) : ""}</span>
+    </div>`;
+}
+
+async function fetchAllQueues(){
+  const r = await fetch(API_BASE + "/queues", { method:"GET" });
   if(!r.ok){
     const t = await r.text();
-    throw new Error(`Queue error ${r.status}: ${t}`);
+    throw new Error(`Queue load failed ${r.status}: ${t}`);
   }
-  return r.json();
+  const data = await r.json();
+  for(const [k,v] of Object.entries(data || {})){
+    queueState[k] = v;
+  }
 }
 
-async function postQueue(amount){
-  const r = await fetch(API_BASE + "/queue", {
+async function submitQueue(username, amount){
+  const r = await fetch(API_BASE + "/queues", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ amount })
+    body: JSON.stringify({ username, amount })
   });
   const data = await r.json().catch(() => ({}));
   if(!r.ok) throw new Error(data.error || `Queue error ${r.status}`);
+  queueState[username.toLowerCase()] = {
+    value: data.value,
+    updatedAt: data.updatedAt,
+    history: data.history || []
+  };
   return data;
 }
 
-queueForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+/* Delegated click for every Update button */
+list.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".queue-submit");
+  if(!btn) return;
 
-  const raw = queueInput.value.trim();
-  if(raw === "") return;
+  const card = btn.closest(".card");
+  const username = card?.dataset.username;
+  if(!username) return;
+
+  const input = card.querySelector(".queue-input");
+  const raw = input.value.trim();
+  if(raw === ""){ input.focus(); return; }
 
   let amount = Number(raw);
-  if(!Number.isFinite(amount)) return;
-
-  // Mirror the server's clamp so the user sees the effect immediately.
+  if(!Number.isFinite(amount)){ alert("Enter a number."); return; }
   if(amount > 1000) amount = 1000;
   if(amount < 0) amount = 0;
 
-  queueSubmit.disabled = true;
+  btn.disabled = true;
   try{
-    const state = await postQueue(amount);
-    renderQueue(state);
-    localStorage.setItem("queue_state", JSON.stringify(state));
-    queueInput.value = "";
+    await submitQueue(username, amount);
+    // Update just this card, not the whole list.
+    const badge = card.querySelector(".queue-badge b");
+    if(badge) badge.textContent = queueState[username.toLowerCase()].value;
+
+    const upd = card.querySelector(".queue-updated");
+    if(upd){
+      upd.textContent = "Updated " +
+        new Date(queueState[username.toLowerCase()].updatedAt)
+          .toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    }
+    input.value = "";
   }catch(err){
-    alert("Could not submit: " + err.message);
+    alert("Could not update: " + err.message);
   }finally{
-    queueSubmit.disabled = false;
+    btn.disabled = false;
   }
 });
 
-(async function initQueue(){
-  // Show last-known value instantly from cache.
-  try{
-    const cached = localStorage.getItem("queue_state");
-    if(cached) renderQueue(JSON.parse(cached));
-  }catch{}
-
-  try{
-    const state = await fetchQueue();
-    renderQueue(state);
-    localStorage.setItem("queue_state", JSON.stringify(state));
-  }catch(err){
-    // Keep whatever cache we had; don't blow up the whole page.
-    console.warn("Queue load failed:", err);
-  }
-})();
+/* Enter key inside an input triggers its card's Update button */
+list.addEventListener("keydown", (e) => {
+  if(e.key !== "Enter") return;
+  const input = e.target.closest(".queue-input");
+  if(!input) return;
+  e.preventDefault();
+  input.closest(".card").querySelector(".queue-submit")?.click();
+});
 
 /* ============================
-   ROBLOX PRESENCE
+   Roblox presence
    ============================ */
 
 function renderLoading(){
-  list.innerHTML = people.map(p => `
-    <article class="card">
+  list.innerHTML = people.map(p => {
+    if(p.special) return renderSpecial(p);
+    return `
+    <article class="card" data-username="${esc(p.username)}">
       <div class="avatar"></div>
       <div>
         <div class="name-row">
-          <span class="name">${esc(p.username||p.title)}</span>
+          <span class="name">${esc(p.username)}</span>
           <span class="role">${esc(p.role)}</span>
+          ${p.note ? `<span class="note-badge">${esc(p.note)}</span>` : ""}
         </div>
         <div class="meta">Loading Roblox information…</div>
+        ${queueRowHTML(p.username)}
       </div>
       <div class="status unknown"><span class="dot"></span>Checking</div>
-    </article>`).join("");
+    </article>`;
+  }).join("");
 }
 
 function renderSpecial(p){
@@ -305,7 +321,7 @@ function renderSpecial(p){
       </div>
       <div class="meta">Private server link • Not a Roblox user.</div>
     </div>
-    <div class="status"><span class="score">${esc(p.score)}</span></div>
+    <div class="status"><span class="dot"></span>Link</div>
   </article>`;
 }
 
@@ -320,7 +336,6 @@ async function api(path, body){
     const text = await response.text();
     throw new Error(`API error ${response.status}: ${text}`);
   }
-
   return response.json();
 }
 
@@ -349,10 +364,13 @@ async function refresh(){
     );
 
     const ids = (resolved.data || []).map(u => u.id);
-    const presenceData = await api("/presence", { userIds: ids });
-    const presenceById = new Map(
-      (presenceData.userPresences || []).map(p => [p.userId, p])
-    );
+    let presenceById = new Map();
+    if(ids.length > 0){
+      const presenceData = await api("/presence", { userIds: ids });
+      presenceById = new Map(
+        (presenceData.userPresences || []).map(p => [p.userId, p])
+      );
+    }
 
     list.innerHTML = people.map(p => {
       if(p.special) return renderSpecial(p);
@@ -361,14 +379,16 @@ async function refresh(){
 
       if(!user){
         return `
-        <article class="card">
+        <article class="card" data-username="${esc(p.username)}">
           <div class="avatar">?</div>
           <div>
             <div class="name-row">
               <span class="name">${esc(p.username)}</span>
               <span class="role">${esc(p.role)}</span>
+              ${p.note ? `<span class="note-badge">${esc(p.note)}</span>` : ""}
             </div>
             <div class="meta error">Roblox username could not be found.</div>
+            ${queueRowHTML(p.username)}
           </div>
           <div class="status unknown"><span class="dot"></span>Unknown</div>
         </article>`;
@@ -385,15 +405,17 @@ async function refresh(){
       }
 
       return `
-      <article class="card ${info.cls}">
+      <article class="card ${info.cls}" data-username="${esc(p.username)}">
         <img class="avatar" src="${avatar}" alt="${esc(user.name)} avatar"
              onerror="this.style.visibility='hidden'">
         <div>
           <div class="name-row">
-            <span class="name">${esc(user.displayName||user.name)}</span>
+            <span class="name">${esc(user.displayName || user.name)}</span>
             <span class="role">${esc(p.role)}</span>
+            ${p.note ? `<span class="note-badge">${esc(p.note)}</span>` : ""}
           </div>
-          <div class="meta">${detail} • <span class="score">${esc(p.score)}</span></div>
+          <div class="meta">${detail}</div>
+          ${queueRowHTML(p.username)}
         </div>
         <div class="status ${info.cls}">
           <span class="dot"></span>${info.text}
@@ -434,18 +456,40 @@ async function refresh(){
   }
 }
 
-refreshButton.addEventListener("click", refresh);
-refresh();
-setInterval(refresh, 60000);
-
-// Pull the queue from other users every 30s.
-setInterval(async () => {
+/* Silently refresh queue badges without nuking the inputs */
+async function refreshQueueBadges(){
   try{
-    const state = await fetchQueue();
-    renderQueue(state);
-    localStorage.setItem("queue_state", JSON.stringify(state));
-  }catch{}
-}, 30000);
+    await fetchAllQueues();
+    for(const card of list.querySelectorAll(".card[data-username]")){
+      const username = card.dataset.username.toLowerCase();
+      const state = queueState[username];
+      const badge = card.querySelector(".queue-badge b");
+      const upd = card.querySelector(".queue-updated");
+      if(badge && state){
+        badge.textContent =
+          (state.value === null || state.value === undefined) ? "—" : state.value;
+      }
+      if(upd && state && state.updatedAt){
+        upd.textContent = "Updated " +
+          new Date(state.updatedAt).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+      }
+    }
+  }catch(e){
+    console.warn("Queue refresh failed:", e);
+  }
+}
+
+refreshButton.addEventListener("click", refresh);
+
+(async function boot(){
+  // Load queues first so the first card render already has values.
+  try{ await fetchAllQueues(); }
+  catch(e){ console.warn("Initial queue load failed:", e); }
+
+  refresh();
+  setInterval(refresh, 60000);
+  setInterval(refreshQueueBadges, 30000);
+})();
 </script>
 </body>
 </html>
