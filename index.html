@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Roblox Test v2</title>
+<title>Roblox Status Monitor</title>
 <style>
 :root{
   --bg:#080d19;--panel:#111a2b;--panel2:#17233b;--text:#f4f7ff;
@@ -25,6 +25,35 @@ button{
   color:white;font-weight:800;cursor:pointer
 }
 button:disabled{opacity:.55;cursor:wait}
+
+/* ---- Queue panel ---- */
+.queue-panel{
+  background:linear-gradient(135deg,rgba(86,136,255,.16),rgba(17,26,43,.95));
+  border:1px solid var(--line);border-radius:15px;
+  padding:20px;margin-bottom:20px;
+  display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:18px 22px;
+  align-items:center;
+}
+.queue-label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:1px}
+.queue-value b{display:block;font-size:46px;line-height:1.05;letter-spacing:-1.5px}
+.queue-value small{color:var(--muted);font-size:12px}
+#queueForm{display:flex;gap:10px;flex-wrap:wrap}
+#queueInput{
+  flex:1;min-width:190px;padding:11px 13px;border-radius:10px;
+  border:1px solid var(--line);background:#0d1628;color:var(--text);
+  font:inherit;font-weight:600;
+}
+#queueInput:focus{outline:2px solid rgba(86,136,255,.6);outline-offset:1px}
+.queue-hint{color:var(--muted);font-size:12px;margin-top:9px}
+.queue-history{
+  grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;
+  display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);
+}
+.queue-history .row{display:flex;gap:9px;flex-wrap:wrap;align-items:baseline}
+.queue-history .delta{color:var(--yellow);font-weight:700}
+.queue-history .eq{color:var(--green);font-weight:700}
+.queue-history .empty{font-style:italic}
+
 .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .stat,.card{background:rgba(17,26,43,.94);border:1px solid var(--line);border-radius:15px}
 .stat{padding:16px}.stat b{display:block;font-size:25px}.stat span{color:var(--muted);font-size:13px}
@@ -55,6 +84,7 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 .footer{color:var(--muted);text-align:center;font-size:12px;margin-top:18px}
 @media(max-width:650px){
   header{align-items:stretch;flex-direction:column}
+  .queue-panel{grid-template-columns:1fr}
   .summary{grid-template-columns:1fr 1fr}
   .summary .stat:last-child{grid-column:span 2}
   .card{grid-template-columns:48px 1fr}
@@ -66,25 +96,54 @@ a{color:#7fa5ff;text-decoration:none}a:hover{text-decoration:underline}
 <body>
 <div class="wrap">
 <header>
+  <div>
+    <h1>Roblox Status Monitor</h1>
+    <p class="subtitle">Live Roblox presence for the users in your list.</p>
+  </div>
   <button id="refresh">Refresh statuses</button>
 </header>
 
+<!-- ===== Queue ===== -->
+<section class="queue-panel">
+  <div class="queue-value">
+    <span class="queue-label">Current queue</span>
+    <b id="queueValue">—</b>
+    <small id="queueMeta">Loading…</small>
+  </div>
+  <div>
+    <form id="queueForm">
+      <input id="queueInput" type="number" min="0" max="1000" step="1"
+             placeholder="Your observed amount (0–1000)" inputmode="numeric">
+      <button type="submit" id="queueSubmit">Submit</button>
+    </form>
+    <div class="queue-hint">
+      Your amount is averaged with the current value: (current + yours) ÷ 2.
+      Anything above 1000 is treated as 1000.
+    </div>
+  </div>
+  <div class="queue-history" id="queueHistory">
+    <span class="empty">No submissions yet — be the first.</span>
+  </div>
+</section>
+
 <section class="summary">
   <div class="stat"><b id="onlineCount">—</b><span>Online / active</span></div>
-  <div class="stat"><b id="offlineCount">—</b><span>Offline (maybe requires follow to join)</span></div>
+  <div class="stat"><b id="offlineCount">—</b><span>Offline</span></div>
   <div class="stat"><b id="updated">—</b><span>Last checked</span></div>
 </section>
 
 <main id="list"></main>
 
 <div class="footer">
-  checked automatically every 60 seconds.
+  Roblox presence is checked automatically every 60 seconds.
 </div>
 </div>
 
 <script>
-
-  const API_BASE = "https://roblox-status-api.mohamedlaik.workers.dev";
+/*
+  Replace with your Cloudflare Worker URL.
+*/
+const API_BASE = "https://roblox-status-api.mohamedlaik.workers.dev";
 
 const people = [
   {role:"Admin", username:"brightgreenpart", score:"900"},
@@ -101,8 +160,8 @@ const people = [
   }
 ];
 
-const list=document.getElementById("list");
-const refreshButton=document.getElementById("refresh");
+const list = document.getElementById("list");
+const refreshButton = document.getElementById("refresh");
 
 function esc(value){
   return String(value).replace(/[&<>"']/g,c=>({
@@ -110,8 +169,118 @@ function esc(value){
   }[c]));
 }
 
+/* ============================
+   QUEUE
+   ============================ */
+
+const queueValueEl  = document.getElementById("queueValue");
+const queueMetaEl   = document.getElementById("queueMeta");
+const queueHistEl   = document.getElementById("queueHistory");
+const queueForm     = document.getElementById("queueForm");
+const queueInput    = document.getElementById("queueInput");
+const queueSubmit   = document.getElementById("queueSubmit");
+
+function renderQueue(state){
+  if(!state) return;
+
+  queueValueEl.textContent =
+    (state.value === null || state.value === undefined) ? "—" : state.value;
+
+  queueMetaEl.textContent = state.updatedAt
+    ? "Updated " + new Date(state.updatedAt).toLocaleString()
+    : "No submissions yet — be the first.";
+
+  const items = (state.history || []).slice(0, 5);
+
+  if(items.length === 0){
+    queueHistEl.innerHTML =
+      '<span class="empty">No submissions yet — be the first.</span>';
+    return;
+  }
+
+  queueHistEl.innerHTML = items.map(h => {
+    const prev = (h.previous === null || h.previous === undefined)
+      ? "—" : h.previous;
+    const time = new Date(h.at).toLocaleTimeString([], {
+      hour:"2-digit", minute:"2-digit"
+    });
+    return `<div class="row">
+      <span class="delta">${prev} → ${h.amount}</span>
+      <span class="eq">= ${h.result}</span>
+      <span>• ${time}</span>
+    </div>`;
+  }).join("");
+}
+
+async function fetchQueue(){
+  const r = await fetch(API_BASE + "/queue", { method:"GET" });
+  if(!r.ok){
+    const t = await r.text();
+    throw new Error(`Queue error ${r.status}: ${t}`);
+  }
+  return r.json();
+}
+
+async function postQueue(amount){
+  const r = await fetch(API_BASE + "/queue", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ amount })
+  });
+  const data = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(data.error || `Queue error ${r.status}`);
+  return data;
+}
+
+queueForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const raw = queueInput.value.trim();
+  if(raw === "") return;
+
+  let amount = Number(raw);
+  if(!Number.isFinite(amount)) return;
+
+  // Mirror the server's clamp so the user sees the effect immediately.
+  if(amount > 1000) amount = 1000;
+  if(amount < 0) amount = 0;
+
+  queueSubmit.disabled = true;
+  try{
+    const state = await postQueue(amount);
+    renderQueue(state);
+    localStorage.setItem("queue_state", JSON.stringify(state));
+    queueInput.value = "";
+  }catch(err){
+    alert("Could not submit: " + err.message);
+  }finally{
+    queueSubmit.disabled = false;
+  }
+});
+
+(async function initQueue(){
+  // Show last-known value instantly from cache.
+  try{
+    const cached = localStorage.getItem("queue_state");
+    if(cached) renderQueue(JSON.parse(cached));
+  }catch{}
+
+  try{
+    const state = await fetchQueue();
+    renderQueue(state);
+    localStorage.setItem("queue_state", JSON.stringify(state));
+  }catch(err){
+    // Keep whatever cache we had; don't blow up the whole page.
+    console.warn("Queue load failed:", err);
+  }
+})();
+
+/* ============================
+   ROBLOX PRESENCE
+   ============================ */
+
 function renderLoading(){
-  list.innerHTML=people.map(p=>`
+  list.innerHTML = people.map(p => `
     <article class="card">
       <div class="avatar"></div>
       <div>
@@ -119,7 +288,7 @@ function renderLoading(){
           <span class="name">${esc(p.username||p.title)}</span>
           <span class="role">${esc(p.role)}</span>
         </div>
-        <div class="meta">Loading…</div>
+        <div class="meta">Loading Roblox information…</div>
       </div>
       <div class="status unknown"><span class="dot"></span>Checking</div>
     </article>`).join("");
@@ -129,22 +298,26 @@ function renderSpecial(p){
   return `
   <article class="card">
     <div class="avatar">🎮</div>
+    <div>
+      <div class="name-row">
+        <span class="name"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></span>
+        <span class="role">${esc(p.role)}</span>
+      </div>
+      <div class="meta">Private server link • Not a Roblox user.</div>
+    </div>
+    <div class="status"><span class="score">${esc(p.score)}</span></div>
   </article>`;
 }
 
-async function api(path,body){
-  if(API_BASE.includes("PASTE-YOUR")){
-    throw new Error("Set your Cloudflare Worker URL in index.html first.");
-  }
-
-  const response=await fetch(API_BASE+path,{
+async function api(path, body){
+  const response = await fetch(API_BASE + path, {
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(body)
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(body)
   });
 
   if(!response.ok){
-    const text=await response.text();
+    const text = await response.text();
     throw new Error(`API error ${response.status}: ${text}`);
   }
 
@@ -153,38 +326,38 @@ async function api(path,body){
 
 function statusInfo(presence){
   switch(presence?.userPresenceType){
-    case 0:return {text:"Offline",cls:"offline"};
-    case 1:return {text:"Online",cls:"online"};
-    case 2:return {text:"In Game",cls:"ingame"};
-    case 3:return {text:"In Studio",cls:"studio"};
-    case 4:return {text:"Invisible",cls:"offline"};
-    default:return {text:"Unknown",cls:"unknown"};
+    case 0: return { text:"Offline",   cls:"offline" };
+    case 1: return { text:"Online",    cls:"online"  };
+    case 2: return { text:"In Game",   cls:"ingame"  };
+    case 3: return { text:"In Studio", cls:"studio"  };
+    case 4: return { text:"Invisible", cls:"offline" };
+    default:return { text:"Unknown",   cls:"unknown" };
   }
 }
 
 async function refresh(){
-  refreshButton.disabled=true;
+  refreshButton.disabled = true;
   renderLoading();
 
   try{
-    const users=people.filter(p=>!p.special);
-    const usernames=users.map(p=>p.username);
+    const users = people.filter(p => !p.special);
+    const usernames = users.map(p => p.username);
 
-    const resolved=await api("/users",{usernames});
-    const idByName=new Map(
-      (resolved.data||[]).map(u=>[u.name.toLowerCase(),u])
+    const resolved = await api("/users", { usernames });
+    const idByName = new Map(
+      (resolved.data || []).map(u => [u.name.toLowerCase(), u])
     );
 
-    const ids=(resolved.data||[]).map(u=>u.id);
-    const presenceData=await api("/presence",{userIds:ids});
-    const presenceById=new Map(
-      (presenceData.userPresences||[]).map(p=>[p.userId,p])
+    const ids = (resolved.data || []).map(u => u.id);
+    const presenceData = await api("/presence", { userIds: ids });
+    const presenceById = new Map(
+      (presenceData.userPresences || []).map(p => [p.userId, p])
     );
 
-    list.innerHTML=people.map(p=>{
-      if(p.special)return renderSpecial(p);
+    list.innerHTML = people.map(p => {
+      if(p.special) return renderSpecial(p);
 
-      const user=idByName.get(p.username.toLowerCase());
+      const user = idByName.get(p.username.toLowerCase());
 
       if(!user){
         return `
@@ -201,14 +374,14 @@ async function refresh(){
         </article>`;
       }
 
-      const presence=presenceById.get(user.id);
-      const info=statusInfo(presence);
-      const avatar=
+      const presence = presenceById.get(user.id);
+      const info = statusInfo(presence);
+      const avatar =
         `https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=150&height=150&format=png`;
 
-      let detail=`@${esc(user.name)}`;
+      let detail = `@${esc(user.name)}`;
       if(presence?.lastLocation){
-        detail+=` • ${esc(presence.lastLocation)}`;
+        detail += ` • ${esc(presence.lastLocation)}`;
       }
 
       return `
@@ -220,7 +393,7 @@ async function refresh(){
             <span class="name">${esc(user.displayName||user.name)}</span>
             <span class="role">${esc(p.role)}</span>
           </div>
-          <div class="meta">${detail} • Queue <span class="score">${esc(p.score)}</span></div>
+          <div class="meta">${detail} • <span class="score">${esc(p.score)}</span></div>
         </div>
         <div class="status ${info.cls}">
           <span class="dot"></span>${info.text}
@@ -228,42 +401,51 @@ async function refresh(){
       </article>`;
     }).join("");
 
-    const presences=users.map(p=>{
-      const u=idByName.get(p.username.toLowerCase());
-      return u?presenceById.get(u.id):null;
+    const presences = users.map(p => {
+      const u = idByName.get(p.username.toLowerCase());
+      return u ? presenceById.get(u.id) : null;
     }).filter(Boolean);
 
-    const active=presences.filter(p=>[1,2,3].includes(p.userPresenceType)).length;
-    const offline=users.length-active;
+    const active = presences.filter(p => [1,2,3].includes(p.userPresenceType)).length;
+    const offline = users.length - active;
 
-    document.getElementById("onlineCount").textContent=active;
-    document.getElementById("offlineCount").textContent=offline;
-    document.getElementById("updated").textContent=
-      new Date().toLocaleTimeString([],{
-        hour:"2-digit",minute:"2-digit",second:"2-digit"
+    document.getElementById("onlineCount").textContent = active;
+    document.getElementById("offlineCount").textContent = offline;
+    document.getElementById("updated").textContent =
+      new Date().toLocaleTimeString([], {
+        hour:"2-digit", minute:"2-digit", second:"2-digit"
       });
 
   }catch(error){
-    list.innerHTML=`
+    list.innerHTML = `
     <article class="card">
       <div class="avatar">!</div>
       <div>
-        <div class="name">Could not load data</div>
+        <div class="name">Could not load Roblox data</div>
         <div class="meta error">${esc(error.message)}</div>
       </div>
     </article>`;
 
-    document.getElementById("onlineCount").textContent="—";
-    document.getElementById("offlineCount").textContent="—";
-    document.getElementById("updated").textContent="Error";
+    document.getElementById("onlineCount").textContent = "—";
+    document.getElementById("offlineCount").textContent = "—";
+    document.getElementById("updated").textContent = "Error";
   }finally{
-    refreshButton.disabled=false;
+    refreshButton.disabled = false;
   }
 }
 
-refreshButton.addEventListener("click",refresh);
+refreshButton.addEventListener("click", refresh);
 refresh();
-setInterval(refresh,60000);
+setInterval(refresh, 60000);
+
+// Pull the queue from other users every 30s.
+setInterval(async () => {
+  try{
+    const state = await fetchQueue();
+    renderQueue(state);
+    localStorage.setItem("queue_state", JSON.stringify(state));
+  }catch{}
+}, 30000);
 </script>
 </body>
 </html>
